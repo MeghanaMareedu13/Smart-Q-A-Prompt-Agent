@@ -132,10 +132,11 @@ if submitted and user_input.strip():
 # ─── Sidebar: Controls & Info ──────────────────────────────
 with st.sidebar:
     st.markdown("## 🧠 Agent Info")
-    st.markdown("""
+    model_display = st.session_state.agent.active_model if "agent" in st.session_state else "Loading..."
+    st.markdown(f"""
 | Property | Value |
 |----------|-------|
-| **Model** | Gemini 2.0 Flash |
+| **Model** | {model_display} |
 | **Type** | Prompt Agent |
 | **Memory** | In-session |
 | **Agent #** | 1 of 7 |
