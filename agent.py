@@ -57,26 +57,43 @@ class SmartQAAgent:
 
         genai.configure(api_key=api_key)
 
-        # Choose the model — gemini-2.0-flash is fast and free-tier friendly
-        self.model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
-            system_instruction=SYSTEM_PROMPT
-        )
-
-        # Memory: persistent conversation history within this session
-        self.conversation_history = []
-        self.chat = self.model.start_chat(history=self.conversation_history)
+        # Try gemini-2.0-flash first, fall back to gemini-1.5-flash if quota exceeded
+        for model_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
+            try:
+                self.model = genai.GenerativeModel(
+                    model_name=model_name,
+                    system_instruction=SYSTEM_PROMPT
+                )
+                self.chat = self.model.start_chat(history=[])
+                self.model_name = model_name
+                break
+            except Exception:
+                continue
 
     def ask(self, user_message: str) -> str:
         """
         Send a message to the agent and get a response.
-        The model automatically tracks conversation history via the chat session.
+        Falls back to gemini-1.5-flash if quota exceeded on primary model.
         """
         try:
             response = self.chat.send_message(user_message)
             return response.text
         except Exception as e:
-            return f"⚠️ Agent Error: {str(e)}"
+            error_str = str(e)
+            # If quota exceeded, try falling back to gemini-1.5-flash
+            if "429" in error_str and self.model_name == "gemini-2.0-flash":
+                try:
+                    self.model = genai.GenerativeModel(
+                        model_name="gemini-1.5-flash",
+                        system_instruction=SYSTEM_PROMPT
+                    )
+                    self.chat = self.model.start_chat(history=[])
+                    self.model_name = "gemini-1.5-flash"
+                    response = self.chat.send_message(user_message)
+                    return response.text
+                except Exception as e2:
+                    return f"⚠️ Both models hit quota limits. Please try again in a few minutes. ({str(e2)[:100]})"
+            return f"⚠️ Agent Error: {error_str[:200]}"
 
     def reset(self):
         """Start a fresh conversation."""
